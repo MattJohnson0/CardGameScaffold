@@ -2,7 +2,7 @@ const server = require("express")();
 const http = require("http").createServer(server);
 const io = require("socket.io")(http);
 const handSize = 5;
-const deckSize = 11;
+const deckSize = 12;
 let players = [];
 let deckRemaining = deckSize;
 let currentPlayer = 0;
@@ -22,6 +22,7 @@ io.on("connection", function (socket) {
     if (players.length < 4) {
       players.push(userName);
       deckRemaining -= handSize;
+      console.log("deckRemaining", deckRemaining);
       io.emit("userPoolFull", false, players);
     } else {
       io.emit("userPoolFull", true);
@@ -46,9 +47,10 @@ io.on("connection", function (socket) {
     // Set >1 because the deck is checked when a card is dropped
     // to decide whether to add a new card to the hand or not
     if (deckRemaining === 1) {
-      io.emit("deckEmpty");
+      io.emit("deckEmpty", true);
       deckRemaining--;
     } else if (deckRemaining > 1) {
+      io.emit("deckEmpty", false);
       deckRemaining--;
     } else if (deckRemaining < 0) {
       io.emit(

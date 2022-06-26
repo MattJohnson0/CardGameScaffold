@@ -27,7 +27,7 @@ export default class Game extends Phaser.Scene {
       MY_TURN = true;
     }
     SOCKET = socket;
-    console.log("Game Scene Connected To Server!", USER_NAME);
+    console.log("Game Scene Connected To Server!");
     this.add.text(10, 720, USER_NAME, {
       font: "32px Courier",
       fill: "#ffffff",
@@ -114,11 +114,6 @@ export default class Game extends Phaser.Scene {
       self.updateGameState(currentPlayer);
     });
 
-    this.socket.on("deckEmpty", function () {
-      console.log("deckEmpty");
-      DECK_EMPTY = true;
-    });
-
     this.input.on("drag", function (pointer, gameObject, dragX, dragY) {
       if (MY_TURN) {
         gameObject.x = dragX;
@@ -150,12 +145,15 @@ export default class Game extends Phaser.Scene {
         gameObject.x = dropZone.x - 350 + dropZone.data.values.cards * 50;
         gameObject.y = dropZone.y;
         gameObject.disableInteractive();
+        self.socket.emit("cardPlayed", PLAYER_INDEX);
+      }
+      self.socket.on("deckEmpty", function (deckEmpty) {
+        DECK_EMPTY = deckEmpty;
         if (!DECK_EMPTY) {
           const index = (gameObject.input.dragStartX - 475) / 100;
           self.dealer.dealPlayerCard(index);
         }
-        self.socket.emit("cardPlayed", PLAYER_INDEX);
-      }
+      });
     });
 
     this.socket.on("serverError", function (message) {

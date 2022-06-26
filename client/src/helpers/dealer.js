@@ -27,7 +27,9 @@ export default class Dealer {
       console.log("players", players);
       for (let j = 0; j < players.length; j++) {
         for (let i = 0; i < this.handSize; i++) {
-          this.dealPlayerCard(i);
+          if (j === 0) {
+            this.dealPlayerCard(i);
+          }
           if (j > 0) {
             const startingPlacement = j === 1 ? 150 : j === 2 ? 550 : 950;
             this.dealOpponentCard(i, startingPlacement);
