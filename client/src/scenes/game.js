@@ -4,11 +4,12 @@ import Zone from "../helpers/zone";
 import Buttons from "../helpers/buttons";
 
 let USER_NAME = "";
-let PLAYER_INDEX = 0;
-let DECK_EMPTY = false;
+let MY_PLAYER_INDEX = 0;
 let SOCKET;
 let MY_TURN = false;
 let PLAYERS = [];
+let PLAYER_CARD_COUNTS = {};
+let HAND_INDEX = 5;
 
 export default class Game extends Phaser.Scene {
   constructor() {
@@ -21,9 +22,9 @@ export default class Game extends Phaser.Scene {
     const { userName, players, socket } = values;
     USER_NAME = userName;
     if (players.length > 0) {
-      PLAYER_INDEX = players.indexOf(USER_NAME);
+      MY_PLAYER_INDEX = players.indexOf(USER_NAME);
     }
-    if (PLAYER_INDEX === 0) {
+    if (MY_PLAYER_INDEX === 0) {
       MY_TURN = true;
     }
     SOCKET = socket;
@@ -44,7 +45,7 @@ export default class Game extends Phaser.Scene {
   create() {
     const { dealText, pass, cancel } = Buttons;
     this.dealText = dealText(this);
-    this.pass = pass(this, PLAYER_INDEX);
+    this.pass = pass(this, MY_PLAYER_INDEX);
     this.cancel = cancel(this);
     this.opponentCards = [];
     this.zone = new Zone(this);
@@ -52,11 +53,11 @@ export default class Game extends Phaser.Scene {
     this.outline = this.zone.renderOutline(this.dropZone);
     this.dealer = new Dealer(this);
     this.setTurn = (currentPlayer) => {
-      currentPlayer === PLAYER_INDEX ? (MY_TURN = true) : (MY_TURN = false);
+      currentPlayer === MY_PLAYER_INDEX ? (MY_TURN = true) : (MY_TURN = false);
     };
     this.socket = SOCKET;
     let self = this;
-    this.setButtonState = () => {
+    this.setButtonsInteractiveState = () => {
       if (MY_TURN) {
         self.pass.setInteractive();
         self.cancel.setInteractive();
@@ -77,42 +78,67 @@ export default class Game extends Phaser.Scene {
           .setColor("#ffffff");
       }
     };
-    this.updateGameState = (currentPlayer) => {
-      self.setTurn(currentPlayer);
-      self.setButtonState();
-      self.setPlayerTurnText(currentPlayer);
+    this.updateOpponentCardCount = (previousPlayer) => {
+      if (previousPlayer !== MY_PLAYER_INDEX) {
+        self.dealer.updatePlayerCardCount(
+          self.dealer.startingPlacement(previousPlayer),
+          PLAYER_CARD_COUNTS,
+          PLAYERS[previousPlayer],
+          self
+        );
+      }
     };
 
-    this.socket.on("dealCards", function (players) {
+    this.updateGameState = (currentPlayer) => {
+      self.setTurn(currentPlayer);
+      self.setPlayerTurnText(currentPlayer);
+      self.setButtonsInteractiveState();
+    };
+
+    this.playOpponentCards = (previousPlayer) => {
+      self.updateOpponentCardCount(previousPlayer);
+      self.dropZone.data.values.cards++;
+      let card = new Card(self);
+      card
+        .render(
+          self.dropZone.x - 350 + self.dropZone.data.values.cards * 50,
+          self.dropZone.y,
+          "cyanCardFront"
+        )
+        .disableInteractive();
+    };
+
+    this.socket.on("dealCards", function (players, playerCardCounts) {
       PLAYERS = players;
-      self.dealer.dealCards(PLAYERS);
+      PLAYER_CARD_COUNTS = playerCardCounts;
+      self.dealer.dealCards(PLAYERS, MY_PLAYER_INDEX, PLAYER_CARD_COUNTS, self);
       self.dealText.disableInteractive();
       self.updateGameState(0);
     });
 
-    this.socket.on("cardPlayed", function (previousPlayer, currentPlayer) {
-      if (previousPlayer !== PLAYER_INDEX) {
-        // TODO: Move logic inside of "if" into a separate function
-        if (DECK_EMPTY) {
-          self.opponentCards.shift().destroy();
+    this.socket.on(
+      "cardPlayed",
+      function (previousPlayer, currentPlayer, playerCardCounts) {
+        if (previousPlayer !== MY_PLAYER_INDEX) {
+          PLAYER_CARD_COUNTS = playerCardCounts;
+          self.playOpponentCards(previousPlayer);
+          self.updateGameState(currentPlayer);
         }
-        // Render opponents cards
-        self.dropZone.data.values.cards++;
-        let card = new Card(self);
-        card
-          .render(
-            self.dropZone.x - 350 + self.dropZone.data.values.cards * 50,
-            self.dropZone.y,
-            "cyanCardFront"
-          )
-          .disableInteractive();
       }
-      self.updateGameState(currentPlayer);
-    });
+    );
 
-    this.socket.on("passed", function (previousPlayer, currentPlayer) {
-      self.updateGameState(currentPlayer);
-    });
+    this.socket.on(
+      "passed",
+      function (previousPlayer, currentPlayer, playerCardCounts) {
+        self.updateGameState(currentPlayer);
+        PLAYER_CARD_COUNTS = playerCardCounts;
+        self.updateOpponentCardCount(previousPlayer);
+        if (MY_PLAYER_INDEX === previousPlayer) {
+          self.dealer.dealMyPlayerACard(HAND_INDEX);
+          HAND_INDEX += 1;
+        }
+      }
+    );
 
     this.input.on("drag", function (pointer, gameObject, dragX, dragY) {
       if (MY_TURN) {
@@ -145,13 +171,12 @@ export default class Game extends Phaser.Scene {
         gameObject.x = dropZone.x - 350 + dropZone.data.values.cards * 50;
         gameObject.y = dropZone.y;
         gameObject.disableInteractive();
-        self.socket.emit("cardPlayed", PLAYER_INDEX);
+        self.socket.emit("cardPlayed", MY_PLAYER_INDEX);
       }
-      self.socket.on("deckEmpty", function (deckEmpty) {
-        DECK_EMPTY = deckEmpty;
-        if (!DECK_EMPTY) {
+      self.socket.once("deckRemaining", function (deckRemaining) {
+        if (deckRemaining >= 1) {
           const index = (gameObject.input.dragStartX - 475) / 100;
-          self.dealer.dealPlayerCard(index);
+          self.dealer.dealMyPlayerACard(index);
         }
       });
     });

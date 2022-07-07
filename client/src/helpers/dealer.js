@@ -5,36 +5,87 @@ let opponentSprite;
 
 export default class Dealer {
   constructor(scene) {
+    let self = this;
     this.handSize = 5;
 
-    this.dealPlayerCard = (index) => {
+    this.startingPlacement = (index) =>
+      index === 0 ? 150 : index === 1 ? 550 : 950;
+
+    this.dealMyPlayerACard = (index) => {
       playerSprite = "magentaCardFront";
       let playerCard = new Card(scene, index);
-      playerCard.render(475 + index * 100, 650, playerSprite);
+      console.log("index", index);
+      const cardPlacement = 175 + index * 100;
+      console.log("cardPlacement", cardPlacement);
+      playerCard.render(cardPlacement, 650, playerSprite);
     };
 
-    this.dealOpponentCard = (index, startingPlacement) => {
+    this.updatePlayerCardCount = (
+      startingPlacement,
+      playerCardCounts,
+      opponentName,
+      gameSelf
+    ) => {
+      const opponentNameSnakeCase = `player_${opponentName}`;
+      const playerCardCountsArr = Object.entries(playerCardCounts);
+      const playerCardCountsFiltered = playerCardCountsArr.filter(
+        ([key, name]) => {
+          return self.opponents.indexOf(key) > -1;
+        }
+      );
+      const opponentCardCounts = Object.fromEntries(playerCardCountsFiltered);
+      const text = `${opponentCardCounts[opponentName]}`;
+      if (gameSelf[opponentNameSnakeCase]) {
+        gameSelf[opponentNameSnakeCase].text = text;
+      } else {
+        gameSelf[opponentNameSnakeCase] = gameSelf.add
+          .text(startingPlacement + 120, 150, [text])
+          .setFontSize(18)
+          .setFontFamily("Trebuchet MS")
+          .setColor("#00ffff");
+      }
+    };
+
+    this.dealOpponentCard = (
+      startingPlacement,
+      playerCardCounts,
+      playerName,
+      gameSelf
+    ) => {
       opponentSprite = "cyanCardBack";
-      let opponentCard = new Card(scene, index);
+      let opponentCard = new Card(scene, 0);
       scene.opponentCards.push(
         opponentCard
-          .render(startingPlacement + index * 60, 125, opponentSprite)
+          .render(startingPlacement + 60, 125, opponentSprite)
           .disableInteractive()
+      );
+
+      gameSelf.add
+        .text(startingPlacement + 120, 125, [`${playerName}`])
+        .setFontSize(18)
+        .setFontFamily("Trebuchet MS")
+        .setColor("#00ffff");
+
+      self.updatePlayerCardCount(
+        startingPlacement,
+        playerCardCounts,
+        playerName,
+        gameSelf
       );
     };
 
-    this.dealCards = (players) => {
-      console.log("players", players);
-      for (let j = 0; j < players.length; j++) {
-        for (let i = 0; i < this.handSize; i++) {
-          if (j === 0) {
-            this.dealPlayerCard(i);
-          }
-          if (j > 0) {
-            const startingPlacement = j === 1 ? 150 : j === 2 ? 550 : 950;
-            this.dealOpponentCard(i, startingPlacement);
-          }
-        }
+    this.dealCards = (players, playerIndex, playerCardCounts, gameSelf) => {
+      self.opponents = players.filter((item) => item !== players[playerIndex]);
+      for (let i = 0; i < this.handSize; i++) {
+        this.dealMyPlayerACard(i);
+      }
+      for (let j = 0; j < self.opponents.length; j++) {
+        this.dealOpponentCard(
+          self.startingPlacement(j),
+          playerCardCounts,
+          self.opponents[j],
+          gameSelf
+        );
       }
     };
   }
