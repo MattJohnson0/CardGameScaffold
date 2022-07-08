@@ -14,10 +14,8 @@ export default class Dealer {
     this.dealMyPlayerACard = (index) => {
       playerSprite = "magentaCardFront";
       let playerCard = new Card(scene, index);
-      console.log("index", index);
-      const cardPlacement = 175 + index * 100;
-      console.log("cardPlacement", cardPlacement);
-      playerCard.render(cardPlacement, 650, playerSprite);
+      const cardLocation = 175 + index * 100;
+      playerCard.render(cardLocation, 650, playerSprite);
     };
 
     this.updatePlayerCardCount = (
